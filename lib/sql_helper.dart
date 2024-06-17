@@ -1,78 +1,64 @@
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart' as sql;
+import 'package:path/path.dart';
 
 class SQLHelper {
-  //Future enables you to run tasks asynchronously in order to free up any other threads that shouldn't be blocked.
-  static Future<void> createTables(sql.Database database) async {
-    
-    await database.execute("""CREATE TABLE diary(
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        feeling TEXT,
-        description TEXT,
-        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-      """);
-  }
-// id: the id of a diary
-// feeling, description: emotion and description of your feeling
-// created_at: the time that the diary was created. It will be automatically handled by SQLite
-
   static Future<sql.Database> db() async {
     return sql.openDatabase(
-      'diaryawie.db',
-      version: 1,
-      onCreate: (sql.Database database, int version) async {
-        await createTables(database);
+      join(await sql.getDatabasesPath(), 'diary.db'),
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE diaries(
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            feeling TEXT,
+            description TEXT,
+            imagePath TEXT,
+            createdAt TEXT
+          )
+        ''');
       },
+      version: 1,
     );
   }
 
-  // Create new diary (diaries)
-  static Future<int> createDiary(String feeling, String? descrption) async {
-    final db = await SQLHelper.db();
-
-    final data = {'feeling': feeling, 'description': descrption};
-    final id = await db.insert('diary', data,
-        conflictAlgorithm: sql.ConflictAlgorithm.replace);
-    return id;
-  }
-
-  // Read all diaries
+  // Method to get all diaries
   static Future<List<Map<String, dynamic>>> getDiaries() async {
     final db = await SQLHelper.db();
-    return db.query('diary', orderBy: "id");
+    return db.query('diaries', orderBy: "id");
   }
 
-  // Read a single diary by id
-  // The app doesn't use this method but I put here in case you want to see it
-  static Future<List<Map<String, dynamic>>> getDiary(int id) async {
+  // Method to create a new diary
+  static Future<void> createDiary(String feeling, String description, String? imagePath) async {
     final db = await SQLHelper.db();
-    return db.query('diary', where: "id = ?", whereArgs: [id], limit: 1);
-  }
-
-  // Update an diary by id
-  static Future<int> updateDiary(
-      int id, String feeling, String? descrption) async {
-    final db = await SQLHelper.db();
-
     final data = {
       'feeling': feeling,
-      'description': descrption,
+      'description': description,
+      'imagePath': imagePath,
       'createdAt': DateTime.now().toString()
     };
-
-    final result =
-        await db.update('diary', data, where: "id = ?", whereArgs: [id]);
-    return result;
+    await db.insert('diaries', data);
   }
 
-  // Delete a  diary by id
+  // Method to update an existing diary
+  static Future<void> updateDiary(int id, String feeling, String description, String? imagePath) async {
+    final db = await SQLHelper.db();
+    final data = {
+      'feeling': feeling,
+      'description': description,
+      'imagePath': imagePath,
+      'createdAt': DateTime.now().toString()
+    };
+    await db.update('diaries', data, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Method to delete a diary
   static Future<void> deleteDiary(int id) async {
     final db = await SQLHelper.db();
-    try {
-      await db.delete("diary", where: "id = ?", whereArgs: [id]);
-    } catch (err) {
-      debugPrint("Something went wrong when deleting a diary: $err");
-    }
+    await db.delete('diaries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Method to delete all diaries
+  static Future<void> deleteAllDiaries() async {
+    final db = await SQLHelper.db();
+    await db.delete('diaries');
   }
 }
